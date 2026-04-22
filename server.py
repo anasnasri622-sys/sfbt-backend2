@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={AIzaSyC761eLJavQkYzr7nBXDRK_DqmiDCe7b5g}"
 
 TODAY = datetime(2026, 4, 22)
 
