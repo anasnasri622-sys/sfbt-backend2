@@ -1,9 +1,3 @@
-"""
-SFBT — Backend IA Prévision
-Stack : Flask + Google Gemini Flash (gratuit) + Google Search intégré
-Déploiement : Render.com (gratuit)
-"""
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
@@ -11,29 +5,27 @@ import json, os, re
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)  # autorise les appels depuis le HTML (GitHub Pages / Power BI)
+CORS(app)
 
-# Clé API Gemini — obtenez-la gratuitement sur https://aistudio.google.com/
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "VOTRE_CLE_ICI")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 genai.configure(api_key=GEMINI_API_KEY)
 
-TODAY = datetime(2026, 4, 17)
+TODAY = datetime(2026, 4, 22)
 
 SYSTEM_PROMPT = """Tu es un expert commercial senior pour la SFBT (Société des Boissons de Tunisie).
 
-MISSION : Analyser les événements réels qui vont influencer les ventes d'un article SFBT 
-sur une période donnée en Tunisie.
+MISSION : Analyser les événements réels qui vont influencer les ventes d'un article SFBT sur une période donnée en Tunisie.
+
+ÉVÉNEMENTS TUNISIENS RÉELS À UTILISER :
+- Fêtes nationales : 1er mai (Fête du travail), 25 juillet (Fête de la République), 13 août (Fête de la Femme), 15 octobre (Fête de l'Evacuation), 7 novembre (Fête nationale)
+- Aïd El Fitr 2026 : autour du 20-21 mars 2026
+- Aïd El Adha 2026 : autour du 26-27 mai 2026
+- Saison estivale juin-août : pic de consommation boissons (+30 à +50%)
+- Ligue 1 Tunisienne : matchs les week-ends (samedis/dimanches)
+- Ramadan 2026 : du 18 février au 19 mars 2026
 
 INSTRUCTIONS :
-1. Utilise Google Search pour trouver les événements RÉELS et DATÉS pour la période :
-   - Calendrier Ligue 1 tunisienne 2025-2026 (dates exactes des journées)
-   - Fêtes nationales tunisiennes officielles (1er mai, 25 juillet, 13 août, 15 oct, 7 nov)
-   - Dates exactes Aïd El Fitr et Aïd El Adha 2026 selon calendrier islamique
-   - Matchs de la sélection nationale tunisienne
-   - Saison estivale (pic de consommation boissons juin-août)
-   - Événements promotionnels GMS (grandes surfaces) tunisiennes
-
-2. Retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, ni balises markdown :
+Retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
 
 {
   "article": "nom exact de l'article",
@@ -89,24 +81,19 @@ def predict():
 - Durée : {jours} jours
 - Du : {date_debut.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}
 
-Recherche les événements réels tunisiens sur cette période et retourne le JSON demandé."""
+Retourne le JSON avec les événements réels tunisiens sur cette période."""
 
-        # Appel Gemini Flash avec Google Search intégré
         model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
-            system_instruction=SYSTEM_PROMPT,
-            tools="google_search_retrieval"  # Google Search natif — gratuit
+            system_instruction=SYSTEM_PROMPT
         )
 
         response = model.generate_content(user_message)
         raw_text = response.text
-
-        # Nettoyage du JSON
         raw_text = re.sub(r'```json\s*', '', raw_text)
         raw_text = re.sub(r'```\s*', '', raw_text)
         raw_text = raw_text.strip()
 
-        # Extraction JSON robuste
         json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         if not json_match:
             raise ValueError("Aucun JSON trouvé dans la réponse")
@@ -115,37 +102,53 @@ Recherche les événements réels tunisiens sur cette période et retourne le JS
         return jsonify(result)
 
     except json.JSONDecodeError as e:
-        return jsonify({"error": f"Erreur parsing JSON : {str(e)}", "raw": raw_text[:300]}), 500
+        return jsonify({"error": f"Erreur parsing JSON : {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    """Endpoint conversation libre avec le chatbot SFBT"""
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
         if not message:
             return jsonify({"error": "Message manquant"}), 400
 
-        # Détection article + jours dans le message
         jours_match = re.search(r'(\d+)\s*jours?', message, re.IGNORECASE)
         jours = int(jours_match.group(1)) if jours_match else 30
 
-        # Suppression du nombre de jours pour extraire l'article
         article_raw = re.sub(r'\d+\s*jours?', '', message, flags=re.IGNORECASE)
         article_raw = re.sub(r'(prévision|prevision|analyse|pour|sur)\s*', '', article_raw, flags=re.IGNORECASE)
         article = article_raw.strip().upper() or message.upper()
 
-        # Appel endpoint predict
-        with app.test_request_context(
-            '/predict', method='POST',
-            json={'article': article, 'jours': jours},
-            content_type='application/json'
-        ):
-            resp = predict()
-            return resp
+        date_debut = TODAY
+        date_fin = TODAY + timedelta(days=jours)
+
+        user_message = f"""Génère une analyse de prévision pour :
+- Article : {article}
+- Durée : {jours} jours
+- Du : {date_debut.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}
+
+Retourne le JSON avec les événements réels tunisiens sur cette période."""
+
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            system_instruction=SYSTEM_PROMPT
+        )
+
+        response = model.generate_content(user_message)
+        raw_text = response.text
+        raw_text = re.sub(r'```json\s*', '', raw_text)
+        raw_text = re.sub(r'```\s*', '', raw_text)
+        raw_text = raw_text.strip()
+
+        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+        if not json_match:
+            raise ValueError("Aucun JSON trouvé")
+
+        result = json.loads(json_match.group())
+        return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -154,3 +157,4 @@ def chat():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
