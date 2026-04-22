@@ -11,53 +11,105 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 TODAY = datetime(2026, 4, 22)
 
-SYSTEM_PROMPT = """Tu es un expert commercial senior pour la SFBT (Société des Boissons de Tunisie).
+SYSTEM_PROMPT = """Tu es un expert commercial et industriel senior pour la SFBT (Societe des Boissons de Tunisie).
 
-ÉVÉNEMENTS TUNISIENS RÉELS À UTILISER :
-- Fêtes nationales : 1er mai (Fête du travail), 25 juillet (Fête de la République), 13 août (Fête de la Femme), 15 octobre (Fête de l'Evacuation), 7 novembre (Fête nationale)
-- Aïd El Adha 2026 : 26-27 mai 2026
-- Saison estivale juin-août : pic de consommation boissons +30 à +50%
-- Ligue 1 Tunisienne : matchs les samedis et dimanches
-- Ramadan 2026 : 18 février au 19 mars 2026
-- Fêtes scolaires : rentrée septembre, vacances décembre
+MISSION : Analyser tous les evenements qui influencent les VENTES et la PRODUCTION d'un article SFBT sur une periode donnee en Tunisie.
 
-Retourne UNIQUEMENT un JSON valide, sans texte avant ni après, sans balises markdown.
-Format exact :
+=== EVENEMENTS QUI INFLUENCENT LES VENTES ===
+
+FETES ET JOURS FERIES TUNISIENS :
+- 1er mai : Fete du Travail - forte demande GMS
+- 25 juillet : Fete de la Republique - pic consommation
+- 13 aout : Fete de la Femme - promotions distributeurs
+- 15 octobre : Fete de l'Evacuation
+- 7 novembre : Fete Nationale - tres forte demande
+- Aid El Adha 2026 : 26-27 mai - pic familial ++
+- Ramadan 2026 : 18 fevrier au 19 mars - consommation nocturne
+
+SPORT ET GRANDS EVENEMENTS :
+- Ligue 1 Tunisienne : matchs samedis/dimanches - hausse ventes avant-match
+- Matchs selection nationale tunisienne : tres forte affluence stades
+- Finale Coupe de Tunisie : evenement national majeur
+- Matchs a forte audience TV : hausse ventes dans les cafes et GMS
+
+METEO ET SAISONS :
+- Canicule >35 degres (juin-aout) : pic de consommation boissons +40 a +60%
+- Saison estivale (juin-aout) : periode la plus forte de l'annee
+- Pluies et froid (decembre-janvier) : baisse consommation -20 a -30%
+- Printemps (mars-mai) : reprise progressive de la demande
+
+MARKETING ET DISTRIBUTION :
+- Promotions GMS (Carrefour, Monoprix, MG) : impact immediat ventes
+- Campagnes publicitaires TV SFBT : hausse notoriete
+- Rentree scolaire septembre : relance consommation familles
+- Vacances estivales juillet-aout : pics touristiques zones cotieres
+
+=== EVENEMENTS QUI INFLUENCENT LA PRODUCTION ===
+
+MATIERES PREMIERES :
+- Hausse prix sucre mondial : impact cout de production +15 a +25%
+- Hausse prix aluminium : impact cout boites metalliques
+- Variation prix CO2 industriel : impact production boissons gazeuses
+- Hausse prix plastique PET : impact bouteilles plastique
+- Fluctuation prix eau industrielle : impact direct production
+
+CONCURRENCE :
+- Lancement nouveau produit concurrent (Boga, Coca-Cola, Pepsi) : pression sur parts de marche
+- Promotion agressive concurrent : risque perte clients distributeurs
+- Entree nouvelle marque etrangere sur le marche tunisien
+
+LOGISTIQUE ET SUPPLY CHAIN :
+- Greves portuaires ou transporteurs : retard approvisionnement matieres
+- Penurie d'emballages sur le marche : ralentissement production
+- Hausse prix carburant : impact cout livraison et distribution
+- Arret technique programme usine SFBT : baisse temporaire production
+
+CONTEXTE ECONOMIQUE TUNISIEN :
+- Inflation generale : impact pouvoir d'achat consommateurs
+- Devaluation dinar tunisien : hausse cout matieres importees
+- Restrictions importation matieres premieres : tension approvisionnement
+
+=== FORMAT DE REPONSE OBLIGATOIRE ===
+Retourne UNIQUEMENT un JSON valide, sans texte avant ni apres, sans balises markdown :
+
 {
-  "article": "nom de l'article",
+  "article": "nom exact de l'article",
   "jours": 30,
   "date_debut": "JJ/MM/AAAA",
   "date_fin": "JJ/MM/AAAA",
-  "resume": "Analyse commerciale en 2 phrases",
+  "resume": "Analyse commerciale et industrielle en 2 phrases",
   "tendance": "hausse",
   "variation_pct": 15,
   "evenements": [
     {
       "date": "JJ/MM/2026",
-      "description": "Description précise de l'événement",
-      "impact": "Élevé",
+      "description": "Description precise de l'evenement et son impact chiffre",
+      "impact": "Eleve",
       "type": "sport"
     }
   ]
 }
-Règles strictes :
+
+REGLES STRICTES :
 - tendance = hausse | stable | baisse
-- impact = Élevé | Moyen | Faible  
-- type = sport | meteo | fete | marketing | religion
-- Minimum 8 événements, maximum 12
-- Dates strictement dans la plage demandée
-- Événements réalistes pour le marché tunisien des boissons"""
+- impact = Eleve | Moyen | Faible
+- type = sport | meteo | fete | marketing | religion | production | concurrence | economie
+- Minimum 10 evenements, maximum 14
+- Melanger evenements ventes ET production (au moins 3 evenements production)
+- Dates strictement dans la plage demandee
+- Descriptions precises avec impact chiffre quand possible (+20%, -15%, etc.)
+- Evenements realistes et contextualises pour la Tunisie"""
 
 
 def call_groq(article, jours):
     date_fin = TODAY + timedelta(days=jours)
 
-    user_msg = f"""Génère une analyse de prévision des ventes pour :
+    user_msg = f"""Genere une analyse complete de prevision des ventes et production pour :
 - Article SFBT : {article}
-- Durée : {jours} jours
-- Période : du {TODAY.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}
+- Duree : {jours} jours
+- Periode : du {TODAY.strftime('%d/%m/%Y')} au {date_fin.strftime('%d/%m/%Y')}
 
-Retourne uniquement le JSON demandé."""
+Retourne uniquement le JSON demande avec evenements ventes ET production."""
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -84,7 +136,7 @@ Retourne uniquement le JSON demandé."""
 
     match = re.search(r'\{.*\}', raw, re.DOTALL)
     if not match:
-        raise ValueError("Aucun JSON trouvé dans la réponse")
+        raise ValueError("Aucun JSON trouve dans la reponse")
 
     return json.loads(match.group())
 
@@ -128,7 +180,7 @@ def chat():
         jours = int(m.group(1)) if m else 30
 
         article = re.sub(r'\d+\s*jours?', '', message, flags=re.IGNORECASE)
-        article = re.sub(r'(prévision|prevision|analyse|pour|sur)\s*', '', article, flags=re.IGNORECASE)
+        article = re.sub(r'(prevision|prevision|analyse|pour|sur)\s*', '', article, flags=re.IGNORECASE)
         article = article.strip().upper() or message.upper()
 
         result = call_groq(article, jours)
