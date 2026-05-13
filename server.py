@@ -8,102 +8,233 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-
 TODAY = datetime(2026, 4, 22)
 
+# ═══════════════════════════════════════════════════════════
+# 1. BASE FACTUELLE : dates irréfutables (ne pas toucher)
+# ═══════════════════════════════════════════════════════════
+FETES_FIXES = {
+    "Fête de l'Indépendance": "20-03",
+    "Fête du Travail": "01-05",
+    "Fête de la République": "25-07",
+    "Fête de la Femme": "13-08",
+    "Fête de l'Arbre": "15-11",
+    "Révolution": "14-01",
+    "Fête du Jeune": "16-11",
+    "Fête de l'Evacuation": "15-10",
+    "Fête Nationale": "07-11",
+}
+
+# Fêtes lunaires 2026 (calculées astronomiquement)
+FETES_LUNAIRES_2026 = {
+    "Ramadan": {"debut": "2026-02-17", "fin": "2026-03-18", "type": "religion"},
+    "Aïd El Fitr": {"date": "2026-03-18", "type": "religion"},
+    "Aïd El Adha": {"date": "2026-05-25", "type": "religion", "duree": 4},
+    "Mouled": {"date": "2026-08-26", "type": "religion"},
+}
+
+ARTICLE_CONTEXT = {
+    "BOGA CIDRE VER.RET 100CL": {"famille": "cidre", "boost": 15},
+    "COCA-COLA PET 100CL": {"famille": "cola", "boost": 10},
+    "FANTA PET 100CL": {"famille": "fanta", "boost": 10},
+    "JUS": {"famille": "jus", "boost": 5},
+    "SCHWEPPES": {"famille": "tonic", "boost": 8},
+}
+
+# ═══════════════════════════════════════════════════════════
+# 2. PROMPT LLM : plus de dates factuelles écrites dedans
+# ═══════════════════════════════════════════════════════════
 SYSTEM_PROMPT = """Tu es un expert commercial et industriel senior pour la SFBT (Societe des Boissons de Tunisie).
 
-MISSION : Analyser tous les evenements qui influencent les VENTES et la PRODUCTION d'un article SFBT sur une periode donnee en Tunisie.
+MISSION : Analyser les evenements qui influencent les VENTES et la PRODUCTION d'un article SFBT sur une periode donnee en Tunisie.
 
-=== EVENEMENTS QUI INFLUENCENT LES VENTES ===
+=== CATEGORIES D'EVENEMENTS ===
 
-FETES ET JOURS FERIES TUNISIENS :
-- 1er mai : Fete du Travail - forte demande GMS
-- 25 juillet : Fete de la Republique - pic consommation
-- 13 aout : Fete de la Femme - promotions distributeurs
-- 15 octobre : Fete de l'Evacuation
-- 7 novembre : Fete Nationale - tres forte demande
-- Aid El Adha 2026 : 26-27 mai - pic familial ++
-- Ramadan 2026 : 18 fevrier au 19 mars - consommation nocturne
+FETES ET JOURS FERIES : Fete du Travail, Fete de la Republique, Fete de la Femme, Fete de l'Independance, Aïd El Adha, Aïd El Fitr, Ramadan, Mouled...
+SPORT : matchs Ligue 1 Tunisienne, selection nationale, finale Coupe de Tunisie, grands matchs TV...
+METEO : canicule >35 degres, vague de froid, saison estivale, pluies...
+MARKETING : promotions GMS (Carrefour, Monoprix), campagnes TV SFBT, rentree scolaire, vacances estivales...
+PRODUCTION : matieres premieres (sucre, aluminium, PET, CO2, eau), logistique, greves transporteurs, arrets techniques...
+CONCURRENCE : lancements concurrents, promotions aggressives, nouvelles marques...
+ECONOMIE : inflation, devaluation dinar, restrictions importation...
 
-SPORT ET GRANDS EVENEMENTS :
-- Ligue 1 Tunisienne : matchs samedis/dimanches - hausse ventes avant-match
-- Matchs selection nationale tunisienne : tres forte affluence stades
-- Finale Coupe de Tunisie : evenement national majeur
-- Matchs a forte audience TV : hausse ventes dans les cafes et GMS
+=== CONSIGNES STRICTES ===
+- Identifie les evenements pertinents UNIQUEMENT dans la periode demandee.
+- Pour les fetes nationales et religieuses, indique le NOM exact dans la description. Tu peux te tromper sur la date : un correcteur la rectifiera automatiquement.
+- Pour les evenements meteo, sportifs spontanes ou economiques, raisonne sur la saison et le contexte realiste tunisien.
+- Minimum 10 evenements, melanger VENTES et PRODUCTION (au moins 3 production).
+- Descriptions precises avec impact chiffre quand possible (+20%, -15%, etc.).
+- Tendance = hausse | stable | baisse
+- Impact = Eleve | Moyen | Faible
+- type = sport | meteo | fete | marketing | religion | production | concurrence | economie
 
-METEO ET SAISONS :
-- Canicule >35 degres (juin-aout) : pic de consommation boissons +40 a +60%
-- Saison estivale (juin-aout) : periode la plus forte de l'annee
-- Pluies et froid (decembre-janvier) : baisse consommation -20 a -30%
-- Printemps (mars-mai) : reprise progressive de la demande
-
-MARKETING ET DISTRIBUTION :
-- Promotions GMS (Carrefour, Monoprix, MG) : impact immediat ventes
-- Campagnes publicitaires TV SFBT : hausse notoriete
-- Rentree scolaire septembre : relance consommation familles
-- Vacances estivales juillet-aout : pics touristiques zones cotieres
-
-=== EVENEMENTS QUI INFLUENCENT LA PRODUCTION ===
-
-MATIERES PREMIERES :
-- Hausse prix sucre mondial : impact cout de production +15 a +25%
-- Hausse prix aluminium : impact cout boites metalliques
-- Variation prix CO2 industriel : impact production boissons gazeuses
-- Hausse prix plastique PET : impact bouteilles plastique
-- Fluctuation prix eau industrielle : impact direct production
-
-CONCURRENCE :
-- Lancement nouveau produit concurrent (Boga, Coca-Cola, Pepsi) : pression sur parts de marche
-- Promotion agressive concurrent : risque perte clients distributeurs
-- Entree nouvelle marque etrangere sur le marche tunisien
-
-LOGISTIQUE ET SUPPLY CHAIN :
-- Greves portuaires ou transporteurs : retard approvisionnement matieres
-- Penurie d'emballages sur le marche : ralentissement production
-- Hausse prix carburant : impact cout livraison et distribution
-- Arret technique programme usine SFBT : baisse temporaire production
-
-CONTEXTE ECONOMIQUE TUNISIEN :
-- Inflation generale : impact pouvoir d'achat consommateurs
-- Devaluation dinar tunisien : hausse cout matieres importees
-- Restrictions importation matieres premieres : tension approvisionnement
-
-=== FORMAT DE REPONSE OBLIGATOIRE ===
-Retourne UNIQUEMENT un JSON valide, sans texte avant ni apres, sans balises markdown :
+=== FORMAT JSON OBLIGATOIRE ===
+Retourne UNIQUEMENT un JSON valide, sans texte avant/apres, sans balises markdown :
 
 {
-  "article": "nom exact de l'article",
+  "article": "nom exact",
   "jours": 30,
   "date_debut": "JJ/MM/AAAA",
   "date_fin": "JJ/MM/AAAA",
-  "resume": "Analyse commerciale et industrielle en 2 phrases",
+  "resume": "Analyse en 2 phrases",
   "tendance": "hausse",
   "variation_pct": 15,
   "evenements": [
     {
       "date": "JJ/MM/2026",
-      "description": "Description precise de l'evenement et son impact chiffre",
+      "description": "Description precise avec impact chiffre",
       "impact": "Eleve",
       "type": "sport"
     }
   ]
-}
-
-REGLES STRICTES :
-- tendance = hausse | stable | baisse
-- impact = Eleve | Moyen | Faible
-- type = sport | meteo | fete | marketing | religion | production | concurrence | economie
-- Minimum 10 evenements, maximum 14
-- Melanger evenements ventes ET production (au moins 3 evenements production)
-- Dates strictement dans la plage demandee
-- Descriptions precises avec impact chiffre quand possible (+20%, -15%, etc.)
-- Evenements realistes et contextualises pour la Tunisie"""
+}"""
 
 
+# ═══════════════════════════════════════════════════════════
+# 3. CORRECTEUR FACTUEL (post-traitement)
+# ═══════════════════════════════════════════════════════════
+def normalize_fete(description: str, annee: int):
+    """Detecte une fete connue dans la description et force sa date reelle."""
+    texte = description.lower()
+    
+    # Fetes fixes
+    for fete, mmjj in FETES_FIXES.items():
+        if fete.lower() in texte or fete.lower().replace("é", "e") in texte:
+            return f"{annee}-{mmjj}", "fete"
+    
+    # Fetes lunaires
+    for fete, data in FETES_LUNAIRES_2026.items():
+        if fete.lower() in texte:
+            if "date" in data:
+                return data["date"], data["type"]
+            elif "debut" in data and ("debut" in texte or "ramadan" in texte):
+                return data["debut"], data["type"]
+            elif "fin" in data and ("fin" in texte or "aid el fitr" in texte):
+                return data["fin"], data["type"]
+    
+    return None, None
+
+
+def post_process_events(raw_events, today, horizon):
+    """Corrige les dates des fetes connues, filtre hors periode, normalise l'impact."""
+    annee = today.year
+    results = []
+    
+    for ev in raw_events:
+        desc = ev.get("description", "")
+        date_llm = ev.get("date", "")
+        type_ev = ev.get("type", "autre").lower().strip()
+        
+        # --- Tentative de correction factuelle ---
+        date_correcte, type_detecte = normalize_fete(desc, annee)
+        
+        if date_correcte:
+            # C'est une fete connue : on force la date officielle
+            date_finale = date_correcte
+            type_ev = type_detecte
+        else:
+            # Evenement dynamique (meteo, sport, eco...) : on garde la date du LLM
+            try:
+                dt = datetime.strptime(date_llm, "%d/%m/%Y")
+                date_finale = dt.strftime("%Y-%m-%d")
+            except:
+                # Si le LLM donne une periode vague, on tente d'extraire un mois
+                mois_map = {
+                    "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
+                    "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
+                    "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12
+                }
+                mois_trouve = None
+                for m_fr, m_num in mois_map.items():
+                    if m_fr in date_llm.lower():
+                        mois_trouve = m_num
+                        break
+                if mois_trouve:
+                    date_finale = f"{annee}-{mois_trouve:02d}-15"
+                else:
+                    continue  # date indeterminee -> ignore
+        
+        # --- Verification periode ---
+        try:
+            dt_evt = datetime.strptime(date_finale, "%Y-%m-%d")
+        except:
+            continue
+        
+        if not (today <= dt_evt <= horizon):
+            continue  # hors de la fenetre demandee
+        
+        # --- Normalisation impact ---
+        impact = ev.get("impact", "Moyen").strip().upper()
+        if "ELEV" in impact or "HAUT" in impact or "FORT" in impact:
+            impact_norm = "Élevé"
+        elif "MOY" in impact or "MED" in impact:
+            impact_norm = "Moyen"
+        elif "FAIB" in impact or "BAS" in impact:
+            impact_norm = "Faible"
+        else:
+            impact_norm = "Moyen"
+        
+        results.append({
+            "date": dt_evt.strftime("%d/%m/%Y"),
+            "type": type_ev.upper(),
+            "description": desc,
+            "impact": impact_norm
+        })
+    
+    return results
+
+
+def inject_missing_events(events, today, horizon, article):
+    """Si le LLM a oublie une fete evidente dans la periode, on l'injecte."""
+    annee = today.year
+    
+    # Fetes fixes
+    for nom_fete, mmjj in FETES_FIXES.items():
+        dt = datetime.strptime(f"{annee}-{mmjj}", "%Y-%m-%d")
+        if today <= dt <= horizon:
+            # Verifier si deja presente
+            if not any(nom_fete.lower() in e["description"].lower() for e in events):
+                events.append({
+                    "date": dt.strftime("%d/%m/%Y"),
+                    "type": "FETE",
+                    "description": f"{nom_fete} : pic de consommation nationale",
+                    "impact": "Élevé"
+                })
+    
+    # Fetes lunaires
+    for nom_fete, data in FETES_LUNAIRES_2026.items():
+        if "date" in data:
+            dt = datetime.strptime(data["date"], "%Y-%m-%d")
+            if today <= dt <= horizon:
+                if not any(nom_fete.lower() in e["description"].lower() for e in events):
+                    events.append({
+                        "date": dt.strftime("%d/%m/%Y"),
+                        "type": "RELIGION",
+                        "description": f"{nom_fete} : consommation familiale et nocturne",
+                        "impact": "Élevé"
+                    })
+        elif "debut" in data:
+            dt = datetime.strptime(data["debut"], "%Y-%m-%d")
+            if today <= dt <= horizon:
+                if not any(nom_fete.lower() in e["description"].lower() for e in events):
+                    events.append({
+                        "date": dt.strftime("%d/%m/%Y"),
+                        "type": "RELIGION",
+                        "description": f"{nom_fete} : debut de la periode de consommation nocturne",
+                        "impact": "Élevé"
+                    })
+    
+    # Tri chronologique final
+    events.sort(key=lambda x: datetime.strptime(x["date"], "%d/%m/%Y"))
+    return events
+
+
+# ═══════════════════════════════════════════════════════════
+# 4. APPEL GROQ (inchangé en surface, mais post-traité)
+# ═══════════════════════════════════════════════════════════
 def call_groq(article, jours):
     date_fin = TODAY + timedelta(days=jours)
-
+    
     user_msg = f"""Genere une analyse complete de prevision des ventes et production pour :
 - Article SFBT : {article}
 - Duree : {jours} jours
@@ -115,14 +246,13 @@ Retourne uniquement le JSON demande avec evenements ventes ET production."""
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_msg}
         ],
-        "temperature": 0.7,
+        "temperature": 0.6,
         "max_tokens": 2048
     }
 
@@ -138,12 +268,26 @@ Retourne uniquement le JSON demande avec evenements ventes ET production."""
     if not match:
         raise ValueError("Aucun JSON trouve dans la reponse")
 
-    return json.loads(match.group())
+    data = json.loads(match.group())
+    
+    # ── POST-TRAITEMENT FACTUEL ──
+    raw_events = data.get("evenements", [])
+    events = post_process_events(raw_events, TODAY, date_fin)
+    events = inject_missing_events(events, TODAY, date_fin, article)
+    
+    data["evenements"] = events
+    data["date_debut"] = TODAY.strftime("%d/%m/%Y")
+    data["date_fin"] = date_fin.strftime("%d/%m/%Y")
+    
+    return data
 
 
+# ═══════════════════════════════════════════════════════════
+# 5. ROUTES FLASK (conservées telles quelles)
+# ═══════════════════════════════════════════════════════════
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "message": "SFBT AI Backend operationnel — Groq LLaMA3"})
+    return jsonify({"status": "ok", "message": "SFBT AI Backend operationnel — Groq LLaMA3 + Correcteur factuel"})
 
 
 @app.route('/predict', methods=['POST'])
@@ -193,4 +337,3 @@ def chat():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
