@@ -13,19 +13,21 @@ TODAY = datetime(2026, 4, 22)
 # ═══════════════════════════════════════════════════════════
 # 1. BASE FACTUELLE : dates irréfutables (ne pas toucher)
 # ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# 1. BASE FACTUELLE : dates au format MM-JJ (mois-jour)
+# ═══════════════════════════════════════════════════════════
 FETES_FIXES = {
-    "Fête de l'Indépendance": "20-03",
-    "Fête du Travail": "01-05",
-    "Fête de la République": "25-07",
-    "Fête de la Femme": "13-08",
-    "Fête de l'Arbre": "15-11",
-    "Révolution": "14-01",
-    "Fête du Jeune": "16-11",
-    "Fête de l'Evacuation": "15-10",
-    "Fête Nationale": "07-11",
+    "Fête de l'Indépendance": "03-20",   # 20 mars
+    "Fête du Travail": "05-01",          # 1er mai
+    "Fête de la République": "07-25",    # 25 juillet
+    "Fête de la Femme": "08-13",         # 13 août
+    "Fête de l'Arbre": "11-15",          # 15 novembre
+    "Révolution": "01-14",               # 14 janvier
+    "Fête du Jeune": "11-16",            # 16 novembre
+    "Fête de l'Evacuation": "10-15",     # 15 octobre
+    "Fête Nationale": "11-07",           # 7 novembre
 }
 
-# Fêtes lunaires 2026 (calculées astronomiquement)
 FETES_LUNAIRES_2026 = {
     "Ramadan": {"debut": "2026-02-17", "fin": "2026-03-18", "type": "religion"},
     "Aïd El Fitr": {"date": "2026-03-18", "type": "religion"},
@@ -94,13 +96,13 @@ Retourne UNIQUEMENT un JSON valide, sans texte avant/apres, sans balises markdow
 # 3. CORRECTEUR FACTUEL (post-traitement)
 # ═══════════════════════════════════════════════════════════
 def normalize_fete(description: str, annee: int):
-    """Detecte une fete connue dans la description et force sa date reelle."""
     texte = description.lower()
     
-    # Fetes fixes
     for fete, mmjj in FETES_FIXES.items():
         if fete.lower() in texte or fete.lower().replace("é", "e") in texte:
+            # mmjj est MM-JJ, donc f"{annee}-{mmjj}" est parseable par %Y-%m-%d
             return f"{annee}-{mmjj}", "fete"
+    ...
     
     # Fetes lunaires
     for fete, data in FETES_LUNAIRES_2026.items():
@@ -185,14 +187,13 @@ def post_process_events(raw_events, today, horizon):
 
 
 def inject_missing_events(events, today, horizon, article):
-    """Si le LLM a oublie une fete evidente dans la periode, on l'injecte."""
     annee = today.year
     
     # Fetes fixes
     for nom_fete, mmjj in FETES_FIXES.items():
+        # mmjj est maintenant au format MM-JJ, donc f"{annee}-{mmjj}" = AAAA-MM-JJ
         dt = datetime.strptime(f"{annee}-{mmjj}", "%Y-%m-%d")
         if today <= dt <= horizon:
-            # Verifier si deja presente
             if not any(nom_fete.lower() in e["description"].lower() for e in events):
                 events.append({
                     "date": dt.strftime("%d/%m/%Y"),
@@ -201,7 +202,7 @@ def inject_missing_events(events, today, horizon, article):
                     "impact": "Élevé"
                 })
     
-    # Fetes lunaires
+    # Fetes lunaires (deja au format AAAA-MM-JJ, donc pas de probleme)
     for nom_fete, data in FETES_LUNAIRES_2026.items():
         if "date" in data:
             dt = datetime.strptime(data["date"], "%Y-%m-%d")
