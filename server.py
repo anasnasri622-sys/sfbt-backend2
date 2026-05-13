@@ -8,7 +8,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-TODAY = datetime(2026, 4, 22)
+TODAY = datetime.now()
 
 # ═══════════════════════════════════════════════════════════
 # 1. BASE FACTUELLE : dates irréfutables (ne pas toucher)
